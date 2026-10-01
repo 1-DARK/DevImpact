@@ -273,6 +273,6 @@ DevImpact was created to answer a simple question:
 
 If you like this project:
 
-- ⭐ Star the repo
+- If you find this project useful, give it a star ⭐ — it helps more developers discover DevImpact and supports the project’s growth.
 - 🐛 Report issues
 - 💡 Suggest features
