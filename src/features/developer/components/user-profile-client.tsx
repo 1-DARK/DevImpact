@@ -1,11 +1,12 @@
 "use client";
-
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { Route } from "next";
 import { useClipboardCopy } from "@/hooks";
 import {
   ArrowLeft,
+  BadgeCheck,
   Check,
   Copy,
   ExternalLink,
@@ -49,10 +50,47 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
   const { t } = useTranslation();
   const searchParams = useSearchParams();
   const { copied, copy } = useClipboardCopy();
+  const { copied: markdownCopied, copy: copyMarkdown } = useClipboardCopy();
+  const { copied: htmlCopied, copy: copyHtml } = useClipboardCopy();
+  const { copied: badgeCopied } = useClipboardCopy();
+  const [badgeDialogOpen, setBadgeDialogOpen] = useState(false);
+  const [badgeStyle, setBadgeStyle] = useState<"flat" | "flat-square" | "gradient">("flat-square");
 
   const displayName = user.name?.trim() || user.username;
   const githubUrl = `https://github.com/${user.username}`;
   const compareUrl = `/?user1=${encodeURIComponent(user.username)}`;
+  const scoreColor = (s: number) =>
+    s >= 80 ? "brightgreen" : s >= 60 ? "green" : s >= 40 ? "yellow" : s >= 20 ? "orange" : "red";
+  const esc = (s: string) => s.replace(/-/g, "--").replace(/_/g, "__").replace(/ /g, "_");
+  const { badgeUrl, markdownSnippet, htmlSnippet } = useMemo(() => {
+    const score = user.normalizedFinalScore ?? 0;
+    const isGradient = badgeStyle === "gradient";
+    const color = isGradient ? scoreColor(score) : "blue";
+    const shieldStyle = isGradient ? "flat-square" : badgeStyle;
+
+    const badgeUrl =
+      `https://img.shields.io/badge/${esc("DevImpact Score")}-${esc(score.toFixed(1))}-${color}` +
+      `?style=${shieldStyle}&logo=github`;
+
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const profileUrl = `${origin}/user/${encodeURIComponent(user.username)}`;
+
+    return {
+      badgeUrl,
+      markdownSnippet: `[![DevImpact Score](${badgeUrl})](${profileUrl})`,
+      htmlSnippet: `<a href="${profileUrl}"><img src="${badgeUrl}" alt="DevImpact Score" /></a>`,
+    };
+  }, [user.normalizedFinalScore, user.username, badgeStyle]);
+
+  const handleCopyMarkdown = () => copyMarkdown(markdownSnippet);
+  const handleCopyHtml = () => copyHtml(htmlSnippet);
+
+  useEffect(() => {
+    if (!badgeDialogOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setBadgeDialogOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [badgeDialogOpen]);
 
   // Location & Country detection
   const detectedSlug = detectCountry(location ?? null);
@@ -188,8 +226,8 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
 
       {/* ── Header Profile Hero Section ────────────────────────────── */}
       <section className="rounded-3xl border border-border/60 bg-gradient-to-br from-primary/10 via-background to-background p-6 shadow-sm sm:p-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-4 sm:items-center">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-start gap-4 sm:items-center">
             <Avatar
               src={user.avatarUrl}
               alt={t("comparison.avatarAlt", { name: displayName })}
@@ -248,7 +286,9 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
             <Link href={compareUrl as Route} className="w-full sm:w-auto">
               <Button className="flex w-full items-center justify-center gap-1.5 px-3 text-xs shadow-sm sm:px-4 sm:text-sm">
                 <Scale className="h-4 w-4 shrink-0" />
+
                 <span className="truncate sm:hidden">{t("profile.compareShort")}</span>
+
                 <span className="hidden truncate sm:inline">{t("profile.compareWith")}</span>
               </Button>
             </Link>
@@ -263,9 +303,11 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
               {copied ? (
                 <>
                   <Check className="h-4 w-4 shrink-0 text-green-500" />
+
                   <span className="truncate text-green-500 sm:hidden">
                     {t("profile.copiedShort")}
                   </span>
+
                   <span className="hidden truncate text-green-500 sm:inline">
                     {t("profile.copied")}
                   </span>
@@ -273,8 +315,33 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
               ) : (
                 <>
                   <Copy className="h-4 w-4 shrink-0" />
+
                   <span className="truncate sm:hidden">{t("profile.shareShort")}</span>
+
                   <span className="hidden truncate sm:inline">{t("profile.copyLink")}</span>
+                </>
+              )}
+            </Button>
+
+            {/* Get README Badge */}
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => setBadgeDialogOpen(true)}
+              className="col-span-2 flex w-full items-center justify-center gap-1.5 px-3 text-xs sm:col-span-1 sm:w-auto sm:px-4 sm:text-sm"
+              aria-label={t("profile.getBadge")}
+            >
+              {badgeCopied ? (
+                <>
+                  <Check className="h-4 w-4 shrink-0 text-green-500" />
+
+                  <span className="truncate text-green-500">{t("profile.badgeCopied")}</span>
+                </>
+              ) : (
+                <>
+                  <BadgeCheck className="h-4 w-4 shrink-0" />
+
+                  <span className="truncate">{t("profile.getBadge")}</span>
                 </>
               )}
             </Button>
@@ -288,6 +355,7 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary/80">
             {t("profile.scoreOverview")}
           </p>
+
           <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
             {t("profile.title")}
           </h2>
@@ -301,18 +369,21 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
             highlight={true}
             helperText={t("tooltip.final")}
           />
+
           <ScoreCard
             title={t("comparsion.repo.score")}
             rawValue={user.repoScore}
             normalizedValue={user.normalizedRepoScore}
             helperText={t("tooltip.repo")}
           />
+
           <ScoreCard
             title={t("comparsion.pr.score")}
             rawValue={user.prScore}
             normalizedValue={user.normalizedPRScore}
             helperText={t("tooltip.pr")}
           />
+
           <ScoreCard
             title={t("comparsion.contribution.score")}
             rawValue={user.contributionScore}
@@ -329,8 +400,10 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
             <Scale className="h-4 w-4 text-primary" />
             <CardTitle className="text-base">{t("profile.scoreDistribution")}</CardTitle>
           </div>
+
           <CardDescription>{t("methodology.sections.weights.formula")}</CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <div className="flex justify-between text-xs text-muted-foreground">
@@ -338,10 +411,12 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
                 <span className="h-2 w-2 rounded-full bg-amber-500" />
                 {t("breakdown.repo")} (45%)
               </span>
+
               <span className="font-semibold text-foreground">
                 {t("profile.signalShare", { pct: repoWeightPct })}
               </span>
             </div>
+
             <Progress value={repoWeightPct} className="h-2" />
           </div>
 
@@ -351,10 +426,12 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
                 <span className="h-2 w-2 rounded-full bg-cyan-500" />
                 {t("breakdown.pr")} (45%)
               </span>
+
               <span className="font-semibold text-foreground">
                 {t("profile.signalShare", { pct: prWeightPct })}
               </span>
             </div>
+
             <Progress value={prWeightPct} className="h-2" />
           </div>
 
@@ -364,10 +441,12 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
                 <span className="h-2 w-2 rounded-full bg-violet-500" />
                 {t("breakdown.contribution")} (10%)
               </span>
+
               <span className="font-semibold text-foreground">
                 {t("profile.signalShare", { pct: contributionWeightPct })}
               </span>
             </div>
+
             <Progress value={contributionWeightPct} className="h-2" />
           </div>
         </CardContent>
@@ -379,6 +458,7 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary/80">
             {t("topwork.title")}
           </p>
+
           <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
             {t("profile.topWork")}
           </h2>
@@ -392,8 +472,10 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
                 <Star className="h-4 w-4 text-amber-500" />
                 {t("topwork.toprepos")}
               </CardTitle>
+
               <CardDescription>{t("topwork.desc")}</CardDescription>
             </CardHeader>
+
             <CardContent className="flex-1 space-y-3">
               {user.topRepos.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("empty.repos")}</p>
@@ -419,8 +501,10 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
                 <GitPullRequest className="h-4 w-4 text-cyan-500" />
                 {t("topwork.topprs")}
               </CardTitle>
+
               <CardDescription>{t("topwork.desc")}</CardDescription>
             </CardHeader>
+
             <CardContent className="flex-1 space-y-3">
               {user.topPullRequests.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("empty.pullRequests")}</p>
@@ -446,8 +530,10 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
                 <MessageSquare className="h-4 w-4 text-violet-500" />
                 {t("community.title")}
               </CardTitle>
+
               <CardDescription>{t("community.comments")}</CardDescription>
             </CardHeader>
+
             <CardContent className="flex-1 space-y-3">
               {user.topCommunityContributions && user.topCommunityContributions.length > 0 ? (
                 user.topCommunityContributions
@@ -476,10 +562,12 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
               <ShieldCheck className="h-4 w-4 text-primary" />
               <span>{t("signals.title")}</span>
             </div>
+
             <span className="text-xs text-muted-foreground transition-transform duration-200 group-open:rotate-180">
               ▼
             </span>
           </summary>
+
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {signalEntries.map((entry) => (
               <div
@@ -487,6 +575,7 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
                 className="rounded-lg border border-border/80 bg-background/60 p-3"
               >
                 <p className="text-xs text-muted-foreground">{entry.label}</p>
+
                 <p className="mt-1 text-sm font-semibold text-foreground">{entry.value}</p>
               </div>
             ))}
@@ -502,8 +591,10 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
             {t("explanations.title")}
           </CardTitle>
         </CardHeader>
+
         <CardContent className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <p className="text-sm text-muted-foreground">{t("methodology.cta.description")}</p>
+
           <Link
             href="/scoring-methodology"
             className="inline-flex items-center whitespace-nowrap rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -512,6 +603,110 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
           </Link>
         </CardContent>
       </Card>
+
+      {badgeDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setBadgeDialogOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="badge-dialog-title"
+            className="w-full max-w-lg rounded-xl border bg-background p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-6">
+              <h2 id="badge-dialog-title" className="text-lg font-semibold">
+                {t("profile.getBadge")}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t("profile.badgeDescription")}</p>
+            </div>
+
+            {/* Live preview */}
+            <div className="flex justify-center rounded-lg border p-6">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={badgeUrl}
+                alt={`DevImpact Score: ${(user.normalizedFinalScore ?? 0).toFixed(1)}`}
+                className="h-auto"
+              />
+            </div>
+
+            {/* Style picker */}
+            <div className="mt-6 space-y-2">
+              <p className="text-sm font-medium">{t("profile.badgeStyle")}</p>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["flat", "profile.flat"],
+                    ["flat-square", "profile.flatSquare"],
+                    ["gradient", "profile.scoreColor"],
+                  ] as const
+                ).map(([value, labelKey]) => (
+                  <Button
+                    key={value}
+                    size="sm"
+                    className="px-3 text-sm"
+                    variant={badgeStyle === value ? "primary" : "secondary"}
+                    onClick={() => setBadgeStyle(value)}
+                  >
+                    {t(labelKey)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Markdown */}
+            <div className="mt-6 space-y-2">
+              <p className="text-sm font-medium">{t("profile.markdownLabel")}</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  readOnly
+                  dir="ltr"
+                  value={markdownSnippet}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="min-w-0 flex-1 rounded-md border bg-muted px-3 py-2 text-xs"
+                />
+                <Button
+                  variant="secondary"
+                  className="w-full shrink-0 whitespace-nowrap sm:w-auto"
+                  onClick={handleCopyMarkdown}
+                >
+                  {markdownCopied ? t("profile.copied") : t("profile.copyMarkdown")}
+                </Button>
+              </div>
+            </div>
+
+            {/* HTML */}
+            <div className="mt-6 space-y-2">
+              <p className="text-sm font-medium">{t("profile.htmlLabel")}</p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  readOnly
+                  dir="ltr"
+                  value={htmlSnippet}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="min-w-0 flex-1 rounded-md border bg-muted px-3 py-2 text-xs"
+                />
+                <Button
+                  variant="secondary"
+                  className="w-full shrink-0 whitespace-nowrap sm:w-auto"
+                  onClick={handleCopyHtml}
+                >
+                  {htmlCopied ? t("profile.copied") : t("profile.copyHtml")}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <Button variant="secondary" onClick={() => setBadgeDialogOpen(false)}>
+                {t("profile.close")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
