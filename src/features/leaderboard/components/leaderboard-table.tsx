@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import type { Route } from "next";
-import { Search, AlertTriangle, ExternalLink } from "lucide-react";
+import { Search, AlertTriangle, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Avatar } from "@/components/layout/avatar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { useTranslation } from "@/components/providers/language-provider";
 import { cn } from "@/utils/cn";
 import type { ScoredLeaderboardEntry as LeaderboardEntry } from "../types";
-
 type Props = {
   users: LeaderboardEntry[];
   failedUsers: string[];
@@ -20,6 +19,30 @@ type Props = {
   totalFromSource: number;
   usersProcessed: number;
 };
+
+type SortField = "impactRank" | "finalScore" | "repoScore" | "prScore" | "contributionScore";
+
+type SortDirection = "asc" | "desc";
+
+function SortIcon({
+  field,
+  sortField,
+  sortDirection,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortDirection: SortDirection;
+}) {
+  if (field !== sortField) {
+    return <ArrowUpDown className="h-4 w-4" aria-hidden="true" />;
+  }
+
+  return sortDirection === "asc" ? (
+    <ArrowUp className="h-4 w-4" aria-hidden="true" />
+  ) : (
+    <ArrowDown className="h-4 w-4" aria-hidden="true" />
+  );
+}
 
 function getGithubProfileUrl(username: string): string {
   return `https://github.com/${username}`;
@@ -35,14 +58,41 @@ export function LeaderboardTable({
 }: Props) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("impactRank");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortField(field);
+    setSortDirection(field === "impactRank" ? "asc" : "desc");
+  };
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return users;
     const q = search.trim().toLowerCase();
-    return users.filter(
-      (u) => u.username.toLowerCase().includes(q) || (u.name && u.name.toLowerCase().includes(q)),
-    );
-  }, [users, search]);
+
+    const filteredUsers = q
+      ? users.filter(
+          (u) =>
+            u.username.toLowerCase().includes(q) || (u.name && u.name.toLowerCase().includes(q)),
+        )
+      : users;
+
+    return [...filteredUsers].sort((a, b) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+      const dir = sortDirection === "asc" ? 1 : -1;
+
+      const result =
+        typeof aValue === "number" && typeof bValue === "number"
+          ? aValue - bValue
+          : String(aValue).localeCompare(String(bValue), undefined, { sensitivity: "base" });
+
+      return result !== 0 ? result * dir : a.impactRank - b.impactRank;
+    });
+  }, [users, search, sortField, sortDirection]);
 
   if (users.length === 0) return null;
 
@@ -93,23 +143,127 @@ export function LeaderboardTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="px-3 py-3 text-start font-semibold text-muted-foreground">
-                    {t("leaderboard.impactRank")}
+                  <th
+                    className="px-3 py-3 text-start font-semibold text-muted-foreground"
+                    aria-sort={
+                      sortField === "impactRank"
+                        ? sortDirection === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSort("impactRank")}
+                      className="inline-flex items-center gap-2 hover:text-foreground"
+                    >
+                      {t("leaderboard.impactRank")}
+                      <SortIcon
+                        field="impactRank"
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                      />
+                    </button>
                   </th>
                   <th className="px-3 py-3 text-start font-semibold text-muted-foreground">
                     {t("leaderboard.developer")}
                   </th>
-                  <th className="px-3 py-3 text-start font-semibold text-muted-foreground">
-                    {t("comparsion.final.score")}
+
+                  <th
+                    className="px-3 py-3 text-start font-semibold text-muted-foreground"
+                    aria-sort={
+                      sortField === "finalScore"
+                        ? sortDirection === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSort("finalScore")}
+                      className="inline-flex items-center gap-2 hover:text-foreground"
+                    >
+                      {t("comparsion.final.score")}
+                      <SortIcon
+                        field="finalScore"
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                      />
+                    </button>
                   </th>
-                  <th className="px-3 py-3 text-start font-semibold text-muted-foreground">
-                    {t("comparsion.repo.score")}
+
+                  <th
+                    className="px-3 py-3 text-start font-semibold text-muted-foreground"
+                    aria-sort={
+                      sortField === "repoScore"
+                        ? sortDirection === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSort("repoScore")}
+                      className="inline-flex items-center gap-2 hover:text-foreground"
+                    >
+                      {t("comparsion.repo.score")}
+                      <SortIcon
+                        field="repoScore"
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                      />
+                    </button>
                   </th>
-                  <th className="px-3 py-3 text-start font-semibold text-muted-foreground">
-                    {t("comparsion.pr.score")}
+
+                  <th
+                    className="px-3 py-3 text-start font-semibold text-muted-foreground"
+                    aria-sort={
+                      sortField === "prScore"
+                        ? sortDirection === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSort("prScore")}
+                      className="inline-flex items-center gap-2 hover:text-foreground"
+                    >
+                      {t("comparsion.pr.score")}
+                      <SortIcon
+                        field="prScore"
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                      />
+                    </button>
                   </th>
-                  <th className="px-3 py-3 text-start font-semibold text-muted-foreground">
-                    {t("comparsion.contribution.score")}
+
+                  <th
+                    className="px-3 py-3 text-start font-semibold text-muted-foreground"
+                    aria-sort={
+                      sortField === "contributionScore"
+                        ? sortDirection === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSort("contributionScore")}
+                      className="inline-flex items-center gap-2 hover:text-foreground"
+                    >
+                      {t("comparsion.contribution.score")}
+                      <SortIcon
+                        field="contributionScore"
+                        sortField={sortField}
+                        sortDirection={sortDirection}
+                      />
+                    </button>
                   </th>
                 </tr>
               </thead>
