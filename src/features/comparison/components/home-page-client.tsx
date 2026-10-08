@@ -11,6 +11,8 @@ import { AppFooter } from "@/components/layout/app-footer";
 import { useTranslation } from "@/components/providers/language-provider";
 import { cn } from "@/utils/cn";
 import { useComparisonController } from "../hooks";
+import { type ComparisonPreset } from "../config/comparison-presets";
+import { PresetPills } from "./preset-pills";
 
 export function HomePageClient() {
   const { t } = useTranslation();
@@ -33,6 +35,13 @@ export function HomePageClient() {
     generalError,
     usernameErrors,
   } = useComparisonController();
+
+  const handlePresetClick = (preset: ComparisonPreset) => {
+    handleUsername1Change(preset.username1);
+    handleUsername2Change(preset.username2);
+
+    handleCompare(preset.username1, preset.username2, { selectedLanguages });
+  };
 
   const skeleton = useMemo(() => <DashboardSkeleton />, []);
 
@@ -57,6 +66,14 @@ export function HomePageClient() {
           username1Error={usernameErrors.username1}
           username2Error={usernameErrors.username2}
         />
+        {!displayData && (
+          <PresetPills
+            onSelect={handlePresetClick}
+            loading={loading}
+            username1={username1}
+            username2={username2}
+          />
+        )}
 
         <div className="relative min-h-[28rem]" aria-live="polite">
           {displayData ? (
