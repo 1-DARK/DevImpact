@@ -52,7 +52,6 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
   const { copied, copy } = useClipboardCopy();
   const { copied: markdownCopied, copy: copyMarkdown } = useClipboardCopy();
   const { copied: htmlCopied, copy: copyHtml } = useClipboardCopy();
-  const { copied: badgeCopied } = useClipboardCopy();
   const [badgeDialogOpen, setBadgeDialogOpen] = useState(false);
   const [badgeStyle, setBadgeStyle] = useState<"flat" | "flat-square" | "gradient">("flat-square");
 
@@ -71,8 +70,14 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
     const badgeUrl =
       `https://img.shields.io/badge/${esc("DevImpact Score")}-${esc(score.toFixed(1))}-${color}` +
       `?style=${shieldStyle}&logo=github`;
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    let origin = "";
+    if (siteUrl) {
+      origin = siteUrl.endsWith("/") ? siteUrl.slice(0, -1) : siteUrl;
+    } else if (typeof window !== "undefined") {
+      origin = window.location.origin;
+    }
 
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
     const profileUrl = `${origin}/user/${encodeURIComponent(user.username)}`;
 
     return {
@@ -328,22 +333,11 @@ export function UserProfileClient({ user, location, countryParam }: Props) {
               variant="secondary"
               size="md"
               onClick={() => setBadgeDialogOpen(true)}
-              className="col-span-2 flex w-full items-center justify-center gap-1.5 px-3 text-xs sm:col-span-1 sm:w-auto sm:px-4 sm:text-sm"
+              className="col-span-2 flex w-full items-center justify-center gap-1.5 whitespace-nowrap px-3 text-xs sm:col-span-1 sm:w-auto sm:px-4 sm:text-sm"
               aria-label={t("profile.getBadge")}
             >
-              {badgeCopied ? (
-                <>
-                  <Check className="h-4 w-4 shrink-0 text-green-500" />
-
-                  <span className="truncate text-green-500">{t("profile.badgeCopied")}</span>
-                </>
-              ) : (
-                <>
-                  <BadgeCheck className="h-4 w-4 shrink-0" />
-
-                  <span className="truncate">{t("profile.getBadge")}</span>
-                </>
-              )}
+              <BadgeCheck className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t("profile.getBadge")}</span>
             </Button>
           </div>
         </div>
